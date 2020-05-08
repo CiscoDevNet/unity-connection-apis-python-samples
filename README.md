@@ -16,7 +16,11 @@ This project was developed/tested using [Visual Studio Code](https://code.visual
 
 ## Available samples
 
-* `cuni_notifications_flow.py` - Demonstrates creating a subscription for mailbox event updates using the CUNI SOAP notification service
+* `cuni_notification_logger.py` - Demonstrates creating a subscription for mailbox event updates using the CUNI SOAP notification service
+
+* `cupi_add_user.py` - Creates a test user, then deletes the user
+
+* `cumi_send_message.py` -  Creates a test user, sets the user's password, then sends a new voicemail message with audio file attachment.  Finally, deletes all messages in the user's inbox and deletes the user
 
 ## Getting started
 
@@ -46,12 +50,14 @@ This project was developed/tested using [Visual Studio Code](https://code.visual
 
     ![user config](assets/images/user_config.png)
 
-* If using VS Code, simply open the **Run** tab, select the desired sample and click the green 'run' arrow
+    >Note: see individual sample header comments for additional configs as needed
+
+* If using VS Code, simply open the **Run** tab, select the desired sample and click the green 'run' arrow.
 
     Otherwise, from the terminal you can launch Flask-based apps like so:
 
     ```bash
-    FLASK_APP=cuni_notifications_flow.py python -m flask run --host=0.0.0.0 --port=5000
+    FLASK_APP=cuni_notifications_logger.py python -m flask run --host=0.0.0.0 --port=5000
     ```
 
 ## Hints
