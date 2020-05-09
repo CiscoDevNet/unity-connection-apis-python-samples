@@ -13,13 +13,13 @@ Getting started:
 
     * The two monitored user aliases
 
-    * CUC administrator username and password
+    * CUC administrator username and password (must have 'System Administrator' role)
 
-    * Local machine's IP address
+    * Local machine's IP address (if empty, will attempt to auto-detect)
 
 * Launch the sample either via VS Code 'run' tab, or via command line, like:
 
-    FLASK_APP=cuni_notifications_logger.py python -m flask run --host=0.0.0.0 --port=5000
+    FLASK_APP=cuni_notification_logger.py python -m flask run --host=0.0.0.0 --port=5000
 
 Copyright (c) 2020 Cisco and/or its affiliates.
 Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -44,10 +44,12 @@ import requests
 from requests.auth import HTTPBasicAuth
 import logging
 from http.client import HTTPConnection
+from lxml import etree
+import socket
 import datetime
 import os
 
-# Edit .env file to specify your Unity Connection admin user, password
+# Edit .env file to specify your CUC address and user credentials
 from dotenv import load_dotenv
 load_dotenv()
 
@@ -69,6 +71,30 @@ def incomingMessage():
 
 # Start main program, setup a CUNI subscription
 
+if DEBUG:
+
+    log = logging.getLogger('urllib3')
+    log.setLevel(logging.DEBUG)
+
+    # logging from urllib3 to console
+    ch = logging.StreamHandler()
+    ch.setLevel(logging.DEBUG)
+    log.addHandler(ch)
+
+    # print statements from `http.client.HTTPConnection` to console/stdout
+    HTTPConnection.debuglevel = 1
+
+# Use the application IP configured in .env, if present
+if os.getenv( 'APP_HOST_ADDRESS' ):
+    hostAddress = os.getenv( 'APP_HOST_ADDRESS' )
+else:
+    # Otherwise attempt to detect the local IP to use
+    sock = socket.create_connection( ( os.getenv( 'CUC_ADDRESS' ), 443 ) )
+    hostAddress = sock.getsockname( )[ 0 ]
+    sock.close()
+
+expireDateTime = ( datetime.datetime.now( tz = datetime.timezone.utc ) + datetime.timedelta( days = 1 ) ).isoformat( timespec ='seconds' )
+
 # resourceType: ignored, leave empty
 # eventTypeList: can be ALL_EVENTS or one or more of: 
 #       MESSAGE_INFO, NEW_MESSAGE, OPENED_MESSAGE, SAVED_MESSAGE, UNREAD_MESSAGE, 
@@ -77,42 +103,30 @@ def incomingMessage():
 # callbackServiceUrl: Complete URL where notifcations should be sent
 # expiration: xsd:dateTime/ISO 8601 format time when the subscription expires
 # keepAliveInterval: 0 or 1 to disable or enable keepalive messages
-
-expireDateTime = ( datetime.datetime.now( tz = datetime.timezone.utc ) + datetime.timedelta( days = 1 ) ).isoformat( timespec ='seconds' )
-
 subReq = f'''<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:even="http://unity.cisco.com/messageeventservice/event" xmlns:even1="http://event.messageeventservice.unity.cisco.com">
 <soapenv:Header/>
-<soapenv:Body>
-    <even:subscribe>
-        <even:resourceType/>
-        <even:eventTypeList>
-            <even:string>ALL_EVENTS</even:string>
-        </even:eventTypeList>
-        <even:resourceIdList>
-            <even:string>{ os.getenv( "VM_USER_1" ) }</even:string>
-            <even:string>{ os.getenv( "VM_USER_2" ) }</even:string>
-        </even:resourceIdList>
-        <even:callbackServiceInfo>
-            <even1:callbackServiceUrl>http://{ os.getenv( "APP_HOST_ADDRESS" ) }:{ os.getenv( "APP_PORT" ) }/incomingMessages</even1:callbackServiceUrl>
-        </even:callbackServiceInfo>
-        <even:expiration>{ expireDateTime }</even:expiration>
-        <even:keepAliveInterval>1</even:keepAliveInterval>
-    </even:subscribe>
-</soapenv:Body>
+    <soapenv:Body>
+        <even:subscribe>
+            <even:resourceType/>
+            <even:eventTypeList>
+                <even:string>ALL_EVENTS</even:string>
+            </even:eventTypeList>
+            <even:resourceIdList>
+                <even:string>{ os.getenv( "VM_USER_1" ) }</even:string>
+                <even:string>{ os.getenv( "VM_USER_2" ) }</even:string>
+            </even:resourceIdList>
+            <even:callbackServiceInfo>
+                <even1:callbackServiceUrl>http://{ hostAddress }:{ os.getenv( "APP_PORT" ) }/incomingMessages</even1:callbackServiceUrl>
+            </even:callbackServiceInfo>
+            <even:expiration>{ expireDateTime }</even:expiration>
+            <even:keepAliveInterval>1</even:keepAliveInterval>
+        </even:subscribe>
+    </soapenv:Body>
 </soapenv:Envelope>'''
 
+print( '\nRequest============' )
 print( subReq )
-
-log = logging.getLogger('urllib3')
-log.setLevel(logging.DEBUG)
-
-# logging from urllib3 to console
-ch = logging.StreamHandler()
-ch.setLevel(logging.DEBUG)
-log.addHandler(ch)
-
-# print statements from `http.client.HTTPConnection` to console/stdout
-HTTPConnection.debuglevel = 1
+print()
 
 resp = requests.post( 
     f'https://{ os.getenv( "CUC_ADDRESS" ) }/messageeventservice/services/MessageEventService',
@@ -122,4 +136,5 @@ resp = requests.post(
     verify = False
     )
 
-print( resp, resp.content )    
+print( '\nRESPONSE==========' )
+print( etree.tostring( etree.fromstring( resp.content ), pretty_print = True, encoding = 'unicode' ) )    

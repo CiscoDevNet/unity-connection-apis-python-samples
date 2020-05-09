@@ -8,7 +8,7 @@
             "module": "flask",
             "console": "integratedTerminal",
             "env": {
-                "FLASK_APP": "cuni_notifications_logger.py"
+                "FLASK_APP": "cuni_notification_logger.py"
             },
             "args": [
                 "run",

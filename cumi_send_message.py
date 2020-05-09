@@ -1,9 +1,14 @@
 '''
 Cisco Unity Connection send message script using the CUMI API
 
-Creates a test user, sets the user's password, then sends a new voicemail 
-message with audio file attachment.  Finally, deletes all messages in the
-user's inbox and deletes the user.
+Executes the following sequence:
+
+* Creates a test user
+* Sets the user's password
+* Performs a user address lookup
+* Sends a message with audio file attachment
+* Deletes all messages in the user's inbox
+* Deletes the user
 
 Copyright (c) 2020 Cisco and/or its affiliates.
 Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -32,7 +37,7 @@ import os
 import sys
 import json
 
-# Edit .env file to specify your Webex integration client ID / secret
+# Edit .env file to specify your CUC address and user credentials
 from dotenv import load_dotenv
 load_dotenv()
 
@@ -40,19 +45,19 @@ load_dotenv()
 DEBUG = False
 
 if DEBUG:
-    print()
-    log = logging.getLogger('urllib3')
+
+    log = logging.getLogger( 'urllib3' )
     log.setLevel(logging.DEBUG)
 
     # logging from urllib3 to console
     ch = logging.StreamHandler()
-    ch.setLevel(logging.DEBUG)
-    log.addHandler(ch)
+    ch.setLevel( logging.DEBUG )
+    log.addHandler( ch )
 
     # print statements from `http.client.HTTPConnection` to console/stdout
     HTTPConnection.debuglevel = 1
 
-# Create a basic new user object for testUser1
+# Create a basic new user
 req = {
     'Alias': 'testUser1',
     'DtmfAccessId': '987654321'
@@ -111,6 +116,27 @@ print( f'\n PUT ../users/{ userId }/credential/password: Success\n' )
 
 input( 'Press Enter to continue...' )
 
+# Search mailbox/addresses for testUser1
+try:
+    resp = requests.get( 
+        f'https://{ os.getenv( "CUC_ADDRESS" ) }/vmrest/mailbox/addresses?name=testUser1',
+        auth = HTTPBasicAuth( 'testUser1', '0xFt3i4#%p$V' ),
+        headers = { 'Accept' : 'application/json' },
+        verify = False
+        )
+
+    # Raise an exception if a non-200 HTTP response received
+    resp.raise_for_status()
+    
+except Exception as err:
+
+    print( f'Request error: GET ../mailbox/addresses?name=testUser1: { err }\n' )
+    sys.exit( 1 )
+
+toUserId = resp.json()[ 'Address' ][ 'ObjectId' ]
+
+print ( f'\n GET ../mailbox/addresses?name=testUser1: ObjectId: { toUserId }\n')
+
 # Create a new message with audio attachment
 message = json.dumps( {
     'Subject': 'testMessage',
@@ -125,7 +151,7 @@ recipients = json.dumps( {
     'Recipient': [
         {
             'Type': 'TO',
-            'Address': { 'SmtpAddress': f'testuser1@{ os.getenv( "CUC_ADDRESS" ) }' }
+            'Address': { 'UserGuid': toUserId }
         }
     ]
 } )

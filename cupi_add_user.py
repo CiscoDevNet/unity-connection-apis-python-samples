@@ -1,7 +1,7 @@
 '''
 Cisco Unity Connection add user script using the CUPI API.
 
-Creates a test user, then deletes the user.
+Creates / deletes a test user.
 
 Copyright (c) 2020 Cisco and/or its affiliates.
 Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -21,31 +21,29 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 '''
 
-from flask import Flask, request
 import requests
 from requests.auth import HTTPBasicAuth
 import logging
 from http.client import HTTPConnection
 import os
 import sys
-import textwrap
 
-# Edit .env file to specify your Webex integration client ID / secret
+# Edit .env file to specify your CUC address and user credentials
 from dotenv import load_dotenv
 load_dotenv()
 
 # Change to true to enable request/response debug output
-DEBUG = True
+DEBUG = False
 
 if DEBUG:
     print()
-    log = logging.getLogger('urllib3')
-    log.setLevel(logging.DEBUG)
+    log = logging.getLogger( 'urllib3' )
+    log.setLevel( logging.DEBUG )
 
     # logging from urllib3 to console
     ch = logging.StreamHandler()
     ch.setLevel(logging.DEBUG)
-    log.addHandler(ch)
+    log.addHandler( ch )
 
     # print statements from `http.client.HTTPConnection` to console/stdout
     HTTPConnection.debuglevel = 1
@@ -70,19 +68,18 @@ try:
 except Exception as err:
     print( f'Request error: POST ../users: { err }' )
     sys.exit( 1 )
-else:
-    userId = resp.headers['Location'].split( '/' )[ -1 ]
 
-    print( f'\n POST ../users: Created user Id: { userId }\n' )
+userId = resp.headers['Location'].split( '/' )[ -1 ]
+
+print( f'\n POST ../users: Created user Id: { userId }\n' )
 
 input( 'Press Enter to continue...' )
 
 # Delete the user we just created
-
 try:
     resp = requests.delete( 
         f'https://{ os.getenv( "CUC_ADDRESS" ) }/vmrest/users/{ userId }',
-        auth=HTTPBasicAuth( os.getenv( 'APP_USER' ), os.getenv( 'APP_PASSWORD' ) ),
+        auth = HTTPBasicAuth( os.getenv( 'APP_USER' ), os.getenv( 'APP_PASSWORD' ) ),
         verify = False
         )
 
@@ -92,5 +89,5 @@ try:
 except Exception as err:
     print( f'Request error: DELETE ../users: { err }' )
     sys.exit( 1 )
-else:
-    print( f'\n DELETE ../users/{ userId }: Success\n' )
+
+print( f'\n DELETE ../users/{ userId }: Success\n' )
