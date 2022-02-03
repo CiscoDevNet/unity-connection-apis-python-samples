@@ -1,27 +1,23 @@
 '''
 Cisco Unity Connection mailbox event notification logger using the CUNI API
 
-Creates a notification event subscription with CUNI, monitoring all mailbox
+Creates a notification event subscription via CUNI, monitoring all mailbox
 events for the two users configured in .env.  Note, the users must exist
-before the subscription is created.
+before before running the sample.
 
 Getting started: 
 
 * Identify or create two mailbox users in CUC
-
 * Configure .env with the following info:
-
-    * The two monitored user aliases
-
-    * CUC administrator username and password (must have 'System Administrator' role)
-
-    * Local machine's IP address (if empty, will attempt to auto-detect)
-
-* Launch the sample either via VS Code 'run' tab, or via command line, like:
+    * CUC_HOSTNAME - hostname/IP address of the Unity Connection host
+    * APP_USER / APP_PASSWORD - credentials of the CUC user with API access permissions
+    * VM_USER1 / VMUSER2 - user aliases of the two users for which to subscribe to notifications
+    * APP_HOSTNAME - Local machine's hostname (if present in DNS) or IP address
+* Launch the sample either via VS Code 'run' tab/dropdown, or via command line:
 
     FLASK_APP=cuni_notification_logger.py python -m flask run --host=0.0.0.0 --port=5000
 
-Copyright (c) 2020 Cisco and/or its affiliates.
+Copyright (c) 2022 Cisco and/or its affiliates.
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
 in the Software without restriction, including without limitation the rights
@@ -53,8 +49,8 @@ import os
 from dotenv import load_dotenv
 load_dotenv()
 
-# Change to true to enable request/response debug output
-DEBUG = False
+# Enable detailed HTTP/XML logging in .env
+DEBUG = os.getenv( 'DEBUG' )
 
 # Instantiate the Flask application
 app = Flask(__name__)
@@ -85,11 +81,11 @@ if DEBUG:
     HTTPConnection.debuglevel = 1
 
 # Use the application IP configured in .env, if present
-if os.getenv( 'APP_HOST_ADDRESS' ):
-    hostAddress = os.getenv( 'APP_HOST_ADDRESS' )
+if os.getenv( 'APP_HOSTNAME' ):
+    hostAddress = os.getenv( 'APP_HOSTNAME' )
 else:
     # Otherwise attempt to detect the local IP to use
-    sock = socket.create_connection( ( os.getenv( 'CUC_ADDRESS' ), 443 ) )
+    sock = socket.create_connection( ( os.getenv( 'CUC_HOSTNAME' ), 443 ) )
     hostAddress = sock.getsockname( )[ 0 ]
     sock.close()
 
@@ -129,7 +125,7 @@ print( subReq )
 print()
 
 resp = requests.post( 
-    f'https://{ os.getenv( "CUC_ADDRESS" ) }/messageeventservice/services/MessageEventService',
+    f'https://{ os.getenv( "CUC_HOSTNAME" ) }/messageeventservice/services/MessageEventService',
     auth=HTTPBasicAuth( os.getenv( 'APP_USER' ), os.getenv( 'APP_PASSWORD' ) ),
     headers = { 'Content-Type': 'text/xml', 'SOAPAction': '""' },
     data = subReq,

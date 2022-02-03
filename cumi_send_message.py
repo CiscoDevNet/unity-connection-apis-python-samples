@@ -1,5 +1,5 @@
 '''
-Cisco Unity Connection send message script using the CUMI API
+Cisco Unity Connection send message script using the CUPI/CUMI APIs
 
 Executes the following sequence:
 
@@ -10,7 +10,7 @@ Executes the following sequence:
 * Deletes all messages in the user's inbox
 * Deletes the user
 
-Copyright (c) 2020 Cisco and/or its affiliates.
+Copyright (c) 2022 Cisco and/or its affiliates.
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
 in the Software without restriction, including without limitation the rights
@@ -28,142 +28,174 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 '''
 
+from time import sleep
 import requests
 from requests import Request, Session
 from requests.auth import HTTPBasicAuth
-import logging
-from http.client import HTTPConnection
+from requests.exceptions import HTTPError
+from requests_toolbelt.utils import dump
+import urllib3
 import os
 import sys
 import json
 
-# Edit .env file to specify your CUC address and user credentials
+print()
+
+# Edit .env file to specify your CUC hostname and API admin user credentials
 from dotenv import load_dotenv
 load_dotenv()
 
-# Change to true to enable request/response debug output
-DEBUG = False
+# Enable detailed HTTP/XML logging in .env
+DEBUG = os.getenv( 'DEBUG' ) == 'True'
 
-if DEBUG:
+# Use request_toolkit to print raw HTTP messages
+def logHttp( response ):
+    if not DEBUG == True: return
+    print( '--------------- Request/Response ---------------' )
+    print(
+        dump.dump_all(
+            response = response,
+            request_prefix = None,
+            response_prefix = None
+        ).decode( 'utf-8', errors='ignore' ), '\n' )
 
-    log = logging.getLogger( 'urllib3' )
-    log.setLevel(logging.DEBUG)
+# If the CUC 'tomcat' certificate location is configured in .env,
+# enable server certificate checking for requests
+if os.getenv( 'CUC_CERT' ):
+    certVerify = os.getenv( 'CUC_CERT' )
+# Else disable certificate checking
+else:
+    certVerify = False
 
-    # logging from urllib3 to console
-    ch = logging.StreamHandler()
-    ch.setLevel( logging.DEBUG )
-    log.addHandler( ch )
+# Create a Basic Auth encoded credential
+adminCredentials = HTTPBasicAuth( os.getenv( 'APP_USER' ), os.getenv( 'APP_PASSWORD' ) )
+adminSession = Session()
+adminSession.verify = certVerify
+adminSession.auth = adminCredentials
 
-    # print statements from `http.client.HTTPConnection` to console/stdout
-    HTTPConnection.debuglevel = 1
+# CUC self-signed certs do no have a (deprecated) subjectAltName,
+# disable the warning.
+urllib3.disable_warnings( urllib3.exceptions.SubjectAltNameWarning )
 
-# Create a basic new user
+# Create a new test user with extension 987654321
 req = {
-    'Alias': 'testUser1',
-    'DtmfAccessId': '987654321'
-}
+    "Alias": "testUser",
+    "DtmfAccessId": "987654321" }
 
+# Note: templateAlias must be provided via URL query parameters
 try:
-    resp = requests.post( 
-        f'https://{ os.getenv( "CUC_ADDRESS" ) }/vmrest/users?templateAlias=voicemailusertemplate',
-        auth = HTTPBasicAuth( os.getenv( 'APP_USER' ), os.getenv( 'APP_PASSWORD' ) ),
-        json = req,
-        verify = False
-        )
-
-    # Raise an exception if a non-200 HTTP response received
+    resp = adminSession.post( 
+        f'https://{ os.getenv( "CUC_HOSTNAME" ) }/vmrest/users',
+        params = { 'templateAlias': 'voicemailusertemplate' },
+        headers = { 'Content-Type': 'application/json' },
+        json = req )
+    logHttp( resp )
     resp.raise_for_status()
-    
-except Exception as err:
-
-    print( f'Request error: POST ../users: { err }' )
+except HTTPError as err:
+    statusCode = err.response.status_code
+    print( f'Request error: POST /user Status Code: { statusCode } URL:{ err.response.url }' )
+    print( f'Error: { err.response.content.decode( "utf-8" ) }' )
+    if statusCode == 400: # Bad Request
+        print( 'This error may be due to existing duplicate alias/extension.\n' )
     sys.exit( 1 )
 
-userId = resp.headers['Location'].split( '/' )[ -1 ]
+# Parse the new user's ObjectId from the end of the Location header URL
+userObjectId = resp.headers[ 'Location' ].split( '/' )[ -1 ]
 
-print( f'\n POST ../users: Created user Id: { userId }\n' )
+print( f'POST /users: ObjectId: { userObjectId }\n' )
+input( 'Press Enter to continue...\n' )
 
-input( 'Press Enter to continue...' )
-
-#Set the password for the new user
-
-#CredentailType 3 = password, 4 = pin
+#Set the password for the new user - this must be done after user creation
+# CredentailType 3 = password, 4 = pin
 req = {
     'Credentials': '0xFt3i4#%p$V',
     'CantChange': False,
     'DoesntExpire': True,
     'Locked': False,
-    'CredMustChange': False
-}    
+    'CredMustChange': False }    
 
 try:
-    resp = requests.put( 
-        f'https://{ os.getenv( "CUC_ADDRESS" ) }/vmrest/users/{ userId }/credential/password',
-        auth = HTTPBasicAuth( os.getenv( 'APP_USER' ), os.getenv( 'APP_PASSWORD' ) ),
-        json = req,
-        verify = False
-        )
-
+    resp = adminSession.put( 
+        f'https://{ os.getenv( "CUC_HOSTNAME" ) }/vmrest/users/{ userObjectId }/credential/password',
+        auth = adminCredentials,
+        headers = { 'Content-Type': 'application/json' },
+        json = req )
+    logHttp( resp )
     # Raise an exception if a non-200 HTTP response received
     resp.raise_for_status()
-    
-except Exception as err:
-
-    print( f'Request error: PUT ../users/{ userId }/credential/password: { err }\n' )
+except HTTPError as err:
+    statusCode = err.response.status_code
+    status = json.loads( err.response.content )[ 'errors' ][ 'code' ]
+    print( f'Request error: PUT /password: Status Code:{ statusCode } { status } URL:{ err.response.url }' )
+    print( f'Error: { err.response.content.decode( "utf-8" ) }' )
     sys.exit( 1 )
 
-print( f'\n PUT ../users/{ userId }/credential/password: Success\n' )
+print( f'PUT /password: Success\n' )
+input( 'Press Enter to continue...\n' )
 
-input( 'Press Enter to continue...' )
+# The next four end-user /mailbox operations (search/send/retrieve/dete)
+# will need to use the user's credentials/session object
 
-# Search mailbox/addresses for testUser1
+# Create a Basic Auth encoded credential
+userCredentials = HTTPBasicAuth( 'testUser', '0xFt3i4#%p$V' )
+
+# Create a separate Session for end-user operations
+userSession = Session()
+userSession.verify = certVerify
+userSession.auth = userCredentials
+
+# Query the mailbox address list using the new user's own name.
 try:
-    resp = requests.get( 
-        f'https://{ os.getenv( "CUC_ADDRESS" ) }/vmrest/mailbox/addresses?name=testUser1',
-        auth = HTTPBasicAuth( 'testUser1', '0xFt3i4#%p$V' ),
-        headers = { 'Accept' : 'application/json' },
-        verify = False
-        )
-
-    # Raise an exception if a non-200 HTTP response received
+    resp = userSession.get( 
+        f'https://{ os.getenv( "CUC_HOSTNAME" ) }/vmrest/mailbox/addresses',
+        params = { 'name': 'testUser' },
+        headers = { 'Accept': 'application/json' }        )
+    logHttp( resp )
     resp.raise_for_status()
-    
-except Exception as err:
-
-    print( f'Request error: GET ../mailbox/addresses?name=testUser1: { err }\n' )
+except HTTPError as err:
+    statusCode = err.response.status_code
+    status = json.loads( err.response.content )[ 'errors' ][ 'code' ]
+    print( f'Request error: GET /addresses: Status Code:{ statusCode } { status } URL:{ err.response.url }' )
+    print( f'Error: { err.response.content.decode( "utf-8" ) }' )
     sys.exit( 1 )
 
-toUserId = resp.json()[ 'Address' ][ 'ObjectId' ]
+addresses = resp.json()[ 'Address' ]
 
-print ( f'\n GET ../mailbox/addresses?name=testUser1: ObjectId: { toUserId }\n')
+# If there are < 2 mailbox adresses, Address will be a singleton, not a list,
+# so stuff it into a list to making parsing easier
+if not isinstance( addresses, list ): mailboxStores = [ addresses ]
 
-# Create a new message with audio attachment
+# Note: more than one Address could be returned if other
+# users' names include 'testUser'
+addressObjectId = resp.json()[ 'Address' ][ 0 ][ 'ObjectId' ]
+
+print ( f'GET /addresses: ObjectId: { addressObjectId }\n')
+input( 'Press Enter to continue...\n' )
+
+# Create a new message object, convert to string
 message = json.dumps( {
     'Subject': 'testMessage',
     'Priority': 'Normal',
     'Sensitivity': 'Normal',
     'ReadReceiptRequested': False,
-    'Secure': True
-} )
+    'Secure': True } )
 
-# Send to ourself
+# Sending to ourself as the only recipient...
 recipients = json.dumps( {
     'Recipient': [
         {
             'Type': 'TO',
-            'Address': { 'UserGuid': toUserId }
+            'Address': { 'UserGuid': addressObjectId }
         }
-    ]
-} )
+    ] } )
 
-# Read the audio file (WAV/mono/44Khz)
+# Read the sample audio file contents from message.wav (WAV/mono/44Khz)
 # Formats: see 'User Guide for the Cisco Unity Connection Messaging Assistant Web Tool'
 with open('message.wav', 'rb') as f:
-
     audioFile = f.read( )
 
 #CUMI does not appear to like Content-Disposition multi-part headers
-#   creeted by Requests when using the 'files' option.  We'll need to build the body
+#   created by Requests when using the 'files' option.  We'll need to build the body
 #   from scratch and use a prepared request
 requestBody = (
     b'--the_message_boundary\r\n' +
@@ -175,92 +207,86 @@ requestBody = (
     b'--the_message_boundary\r\n' +
     b'Content-Type: audio/wav\r\n\r\n' +
     audioFile + b'\r\n' +
-    b'--the_message_boundary--\r\n'
-)
+    b'--the_message_boundary--\r\n' )
 
-# Create a scratch request
+# Create a 'scratch' prepared request object
 req = Request('POST', 
-    f'https://{ os.getenv( "CUC_ADDRESS" ) }/vmrest/messages',
-    auth = HTTPBasicAuth( 'testUser1', '0xFt3i4#%p$V' ),
+    f'https://{ os.getenv( "CUC_HOSTNAME" ) }/vmrest/messages',
+    params = { 'userobjectid': userObjectId },
+    auth = userCredentials,
     headers = { 'Content-Type': 'multipart/form-data; boundary=the_message_boundary'},
-    data = requestBody
-)
+    data = requestBody )
 
 try:
     # Prepare and send the request
-    resp = Session().send( req.prepare(), stream=True, verify = False )  
-
-except Exception as err:
-    print( f'Request error: POST ../messages: { err }\n' )
-    sys.exit( 1 )
-
-print( '\n POST ../messages: Success\n' )
-
-input( 'Press Enter to continue...' )
-
-# Retrieve the list of messages in the inbox
-try:
-    resp = requests.get( 
-        f'https://{ os.getenv( "CUC_ADDRESS" ) }/vmrest/mailbox/folders/inbox/messages?userobjectid={ userId }',
-        auth = HTTPBasicAuth( 'testUser1', '0xFt3i4#%p$V' ),
-        headers = { 'Accept': 'application/json' },
-        verify = False
-    )
-
-    # Raise an exception if a non-200 HTTP response received
+    resp = Session().send( req.prepare(), stream=True, verify = certVerify )
+    logHttp( resp )
     resp.raise_for_status()
-    
-except Exception as err:
+except HTTPError as err:
+    statusCode = err.response.status_code
+    status = json.loads( err.response.content )[ 'errors' ][ 'code' ]
+    print( f'Request error: POST /messages: Status Code:{ statusCode } { status } URL:{ err.response.url }' )
+    print( f'Error: { err.response.content.decode( "utf-8" ) }' )
+    sys.exit( 1 )
 
-    print( f'Request error: GET ../mailbox/folders/inbox/messages?userobjectid={ userId }: { err }\n' )
+print( 'POST /messages: Success\n' )
+print( 'Waiting a few seconds for the message to be processed...' )
+sleep( 10 )
+input( 'Press Enter to continue...\n' )
+
+# Retrieve the messages in the inbox to make sure sending it worked
+try:
+    resp = userSession.get( 
+        f'https://{ os.getenv( "CUC_HOSTNAME" ) }/vmrest/mailbox/folders/inbox/messages',
+        params = { 'userobjectid': userObjectId },
+        headers = { 'Accept': 'application/json' } )
+    logHttp( resp )
+    resp.raise_for_status()
+except HTTPError as err:
+    statusCode = err.response.status_code
+    status = json.loads( err.response.content )[ 'errors' ][ 'code' ]
+    print( f'Request error: GET /messages: Status Code:{ statusCode } { status } URL:{ err.response.url }' )
+    print( f'Error: { err.response.content.decode( "utf-8" ) }' )
     sys.exit( 1 )
     
-print( f'\n GET ../mailbox/folders/inbox/messages?userobjectid={ userId }: Messages found: { resp.json()[ "@total" ] }\n' )
+print( f'GET /messages: Messages count: { resp.json()[ "@total" ] }\n' )
+input( 'Press Enter to continue...\n' )
 
-messages = resp.json()['Message'] 
+# Extract the Message field from the response
+messages = resp.json()[ 'Message' ] 
 
-# If there are < 2 messages, Message will not be a list.
-# We'll stuff it into a list in that case to make our for loop below simpler
-messages = messages if isinstance( messages, list ) else [ messages ]
-
-input( 'Press Enter to continue...' )
+# If there are < 2 messages, Message will be a singleton, not a list, 
+# so stuff it into a list to making parsing consistent
+if not isinstance( messages, list ): messages = [ messages ]
 
 # Delete all the messages in the inbox
 for message in messages:
-
     try:
-        resp = requests.delete( 
-            f'https://{ os.getenv( "CUC_ADDRESS" ) }/vmrest/messages/{ message[ "MsgId" ] }',
-            auth = HTTPBasicAuth( 'testUser1', '0xFt3i4#%p$V' ),
-            verify = False
-        )
-
-        # Raise an exception if a non-200 HTTP response received
+        resp = userSession.delete( 
+            f'https://{ os.getenv( "CUC_HOSTNAME" ) }/vmrest/messages/{ message[ "MsgId" ] }' )
+        logHttp( resp )
         resp.raise_for_status()
+    except HTTPError as err:
+        statusCode = err.response.status_code
+        status = json.loads( err.response.content )[ 'errors' ][ 'code' ]
+        print( f'Request error: DELETE /messages: Status Code:{ statusCode } { status } URL:{ err.response.url }' )
+        print( f'Error: { err.response.content.decode( "utf-8" ) }' )
+        sys.exit( 1 ) 
 
-    except Exception as err:
+print( f'DELETE /messages: Success\n' )
+input( 'Press Enter to continue...\n' )
 
-        print( f'Request error: DELETE ../messages/{ message[ "MsgId" ] } { err }\n' )
-        sys.exit( 1 )    
-
-print( f'\n DELETE ../messages: Success\n' )
-
-input( 'Press Enter to continue...' )
-
-# Delete the user we just created
+# Delete the user we just created, using the Admin credentials/session
 try:
-    resp = requests.delete( 
-        f'https://{ os.getenv( "CUC_ADDRESS" ) }/vmrest/users/{ userId }',
-        auth = HTTPBasicAuth( os.getenv( 'APP_USER' ), os.getenv( 'APP_PASSWORD' ) ),
-        verify = False
-        )
-
-    # Raise an exception if a non-200 HTTP response received
+    resp = adminSession.delete( 
+        f'https://{ os.getenv( "CUC_HOSTNAME" ) }/vmrest/users/{ userObjectId }' )
+    logHttp( resp )
     resp.raise_for_status()
+except HTTPError as err:
+    statusCode = err.response.status_code
+    status = json.loads( err.response.content )[ 'errors' ][ 'code' ]
+    print( f'Request error: DELETE /users: Status Code:{ statusCode } { status } URL:{ err.response.url }' )
+    print( f'Error: { err.response.content.decode( "utf-8" ) }' )
+    sys.exit( 1 ) 
 
-except Exception as err:
-
-    print( f'Request error: DELETE ../users: { err }' )
-    sys.exit( 1 )
-
-print( f'\n DELETE ../users/{ userId }: Success\n' )
+print( f'DELETE /users: Success\n' )

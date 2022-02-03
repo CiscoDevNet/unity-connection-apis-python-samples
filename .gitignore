@@ -2,3 +2,5 @@ __pycache__/
 venv/
 .env
 .vscode/settings.json
+recipients.json
+*.pem

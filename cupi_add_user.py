@@ -32,8 +32,8 @@ import sys
 from dotenv import load_dotenv
 load_dotenv()
 
-# Change to true to enable request/response debug output
-DEBUG = False
+# Enable detailed HTTP/XML logging in .env
+DEBUG = os.getenv( 'DEBUG' )
 
 if DEBUG:
     print()
@@ -50,13 +50,13 @@ if DEBUG:
 
 # Create a basic new user
 req = {
-    'Alias': 'testUser1',
+    'Alias': 'testUser',
     'DtmfAccessId': '987654321'
 }
 
 try:
     resp = requests.post( 
-        f'https://{ os.getenv( "CUC_ADDRESS" ) }/vmrest/users?templateAlias=voicemailusertemplate',
+        f'https://{ os.getenv( "CUC_HOSTNAME" ) }/vmrest/users?templateAlias=voicemailusertemplate',
         auth=HTTPBasicAuth( os.getenv( 'APP_USER' ), os.getenv( 'APP_PASSWORD' ) ),
         json = req,
         verify = False
@@ -66,7 +66,7 @@ try:
     resp.raise_for_status()
     
 except Exception as err:
-    print( f'Request error: POST ../users: { err }' )
+    print( f'Request error: POST /users: { err }' )
     sys.exit( 1 )
 
 userId = resp.headers['Location'].split( '/' )[ -1 ]
@@ -78,7 +78,7 @@ input( 'Press Enter to continue...' )
 # Delete the user we just created
 try:
     resp = requests.delete( 
-        f'https://{ os.getenv( "CUC_ADDRESS" ) }/vmrest/users/{ userId }',
+        f'https://{ os.getenv( "CUC_HOSTNAME" ) }/vmrest/users/{ userId }',
         auth = HTTPBasicAuth( os.getenv( 'APP_USER' ), os.getenv( 'APP_PASSWORD' ) ),
         verify = False
         )

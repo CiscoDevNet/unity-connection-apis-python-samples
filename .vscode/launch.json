@@ -15,17 +15,26 @@
                 "--host=0.0.0.0",
                 "--port=5000"
             ]
-        },{
+        },
+        {
             "name": "Launch cupi_add_user",
             "type": "python",
             "request": "launch",
             "program": "cupi_add_user.py",
             "console": "integratedTerminal"
-        },{
+        },
+        {
             "name": "Launch cumi_send_message",
             "type": "python",
             "request": "launch",
             "program": "cumi_send_message.py",
+            "console": "integratedTerminal"
+        },
+        {
+            "name": "Launch cupi_add_update_user_notificationdevice",
+            "type": "python",
+            "request": "launch",
+            "program": "cupi_add_update_user_notificationdevice.py",
             "console": "integratedTerminal"
         }
     ]

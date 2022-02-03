@@ -29,6 +29,8 @@ This project was developed/tested using [Visual Studio Code](https://code.visual
     * Deletes all messages in the user's inbox
     * Deletes the user
 
+* `cupi_add_update_user_notificationdevice.py` - Creates a test user then updates details for the user's default SMTP notification device.
+
 ## Getting started
 
 * Install Python 3
@@ -53,17 +55,15 @@ This project was developed/tested using [Visual Studio Code](https://code.visual
     pip install -r requirements.txt
     ```
   
-* Rename the file `.env.example` to `.env` and edit to specify your CUC address and API user credentials - the user must be an administrator:
+* Rename the file `.env.example` to `.env` and edit to specify your CUC address/credentials - the user must be an administrator:
 
     ![user config](assets/images/user_config.png)
 
     >Note: see individual sample header comments for additional configs as needed
 
-    >Note: pre-populated configurations in .env.example will work when connecting to a [DevNet 'Collaboration x.x' Sandbox](https://devnetsandbox.cisco.com/RM/Topology?c=37ab87fa-8dc5-4667-b461-0e7dab07176b)
-
 * If using VS Code, simply open the **Run** tab, select the desired sample and click the green 'run' arrow.
 
-    Otherwise, from the terminal you can launch Flask-based apps like so:
+    Otherwise, from the terminal you can launch Flask-based apps this way:
 
     ```bash
     FLASK_APP=cuni_notification_logger.py python -m flask run --host=0.0.0.0 --port=5000
@@ -71,4 +71,6 @@ This project was developed/tested using [Visual Studio Code](https://code.visual
 
 ## Hints
 
-* Samples based on the Python Flask web server are launched using the lightweight built-in server - for production use, the application should be [deployed to a proper WSGI web server](https://flask.palletsprojects.com/en/1.1.x/deploying/#deployment)
+* Samples based on the Python Flask web server are launched using the lightweight built-in server development server - for production use, the application should be [deployed to a proper WSGI web server](https://flask.palletsprojects.com/en/2.0.x/deploying/)
+
+* **Requests Sessions** Creating and using a [requests Session](https://2.python-requests.org/en/master/user/advanced/#id1) object allows setting global request parameters like `auth`/`verify`/etc.  In addition, Session retains CUC API `JSESSION` cookies to bypass expensive backend authentication checks per-request, and HTTP persistent connections to keep network latency and networking CPU usage lower.
