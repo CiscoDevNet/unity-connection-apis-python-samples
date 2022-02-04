@@ -43,7 +43,7 @@ This project was developed/tested using [Visual Studio Code](https://code.visual
     git clone https://www.github.com/CiscoDevNet/unity-connection-apis-python-samples
     ```
 
-* Create a Python virtual environment:
+* Create a [Python virtual environment](https://docs.python.org/3/tutorial/venv.html):
 
     ```bash
     python3 -m venv venv
@@ -55,22 +55,42 @@ This project was developed/tested using [Visual Studio Code](https://code.visual
     pip install -r requirements.txt
     ```
   
-* Rename the file `.env.example` to `.env` and edit to specify your CUC address/credentials - the user must be an administrator:
+* [Optional] To enable using a secure HTTPS connection with Unity Connection APIs, you may need to download the CUC `tomcat` certificate (as a PEM chain) and place it in the root directory of this project.
+
+    You can use [openssl](https://www.openssl.org/) to retrieve it from the command line:
+
+    ```
+    openssl s_client -showcerts -connect cuc_hostname:443 < /dev/null 2>/dev/null | openssl x509 -outform pem > tomcat.pem
+    ```
+
+    Or via a web browser by navigating to the CUC host and clicking on the security icon in the address bar:
+
+    ![more information](assets/images/cert1.png)
+
+    ![PEM chain](assets/images/cert2.png)
+
+    
+* Rename the `.env.example` file to `.env`, and edit to specify your CUC details. Note: `APP_USER` must be an administrator:
 
     ![user config](assets/images/user_config.png)
 
-    >Note: see individual sample header comments for additional configs as needed
-
 * If using VS Code, simply open the **Run** tab, select the desired sample and click the green 'run' arrow.
 
-    Otherwise, from the terminal you can launch Flask-based apps this way:
+    Otherwise, from the terminal you can launch most samples like:
+    
+    ```
+    python cupi_add_user.py
+    ```
+
+    For Flask-based apps (currently only `cuni_notification_logger.py`) use this format:
 
     ```bash
     FLASK_APP=cuni_notification_logger.py python -m flask run --host=0.0.0.0 --port=5000
     ```
+> Note: check the comments in individual sample apps for any special additional configs 
 
 ## Hints
 
-* Samples based on the Python Flask web server are launched using the lightweight built-in server development server - for production use, the application should be [deployed to a proper WSGI web server](https://flask.palletsprojects.com/en/2.0.x/deploying/)
+* Samples based on Python [Flask(https://flask.palletsprojects.com/en/2.0.x/)] are launched using the lightweight built-in development web server.  For production, applications should always be [deployed to a proper WSGI web server](https://flask.palletsprojects.com/en/2.0.x/deploying/)
 
-* **Requests Sessions** Creating and using a [requests Session](https://2.python-requests.org/en/master/user/advanced/#id1) object allows setting global request parameters like `auth`/`verify`/etc.  In addition, Session retains CUC API `JSESSION` cookies to bypass expensive backend authentication checks per-request, and HTTP persistent connections to keep network latency and networking CPU usage lower.
+* Creating and using a [requests Session](https://2.python-requests.org/en/master/user/advanced/#id1) object allows setting global request parameters like `auth`/`verify`/etc.  In addition, Session implements CUC API `JSESSIONID` cookies (to bypass expensive per-request backend authentication checks), as well as HTTP 1.1 persistent connections (to keep network latency and networking CPU usage lower).

@@ -47,7 +47,7 @@ import os
 
 # Edit .env file to specify your CUC address and user credentials
 from dotenv import load_dotenv
-load_dotenv()
+load_dotenv( override = True )
 
 # Enable detailed HTTP/XML logging in .env
 DEBUG = os.getenv( 'DEBUG' )
