@@ -8,9 +8,9 @@ https://developer.cisco.com/site/unity-connection/overview/
 
 ## Tested environments
 
-- Ubuntu 19.10
-- Python 3.7.5
-- Unity Connection 11.5 / 12.5
+- Ubuntu 21.10
+- Python 3.9.7
+- Unity Connection 11.5 / 12.5 / 14
 
 This project was developed/tested using [Visual Studio Code](https://code.visualstudio.com/)
 
