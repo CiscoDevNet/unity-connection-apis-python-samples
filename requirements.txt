@@ -11,4 +11,4 @@ python-dotenv==0.19.2
 requests==2.27.1
 requests-toolbelt==0.9.1
 urllib3==1.26.8
-Werkzeug==2.0.2
+Werkzeug==2.2.3
